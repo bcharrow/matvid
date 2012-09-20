@@ -1,0 +1,141 @@
+classdef FrameConverter < handle
+    %FRAMECONVERTER Make a movie from a folder of PDFs
+    
+    properties
+        path = '';
+        fmt = '%03d.jpg';
+    end
+    
+    methods
+        function [obj] = FrameConverter(path)
+            [success, data] = fileattrib(path);
+            if ~success
+                error('%s: %s', path, data);
+            elseif ~isdir(data.Name)
+                error('%s is not a directory', data.Name);
+            end
+            obj.path = data.Name;
+        end
+        
+        function [] = convert(obj, args, force)
+            % Convert all files in folder to JPG
+            %
+            % Default is to convert each PDF to 512x512 image.
+            %
+            % Caches results so that if a JPG has already been made for a
+            % PDF with the passed in arguments, no action is taken
+            %
+            % args: String that gets passed to convert
+            if nargin < 2
+                args = '';
+            end
+            if nargin < 3
+                force = false;
+            end
+            [success, pdfs] = fileattrib([obj.path '/*.pdf']);
+            if ~success
+                warning('No pdfs found');
+                return;
+            end
+            % Read command that was used last time
+            arg_file = [obj.path '/.conv_arg'];
+            if exist(arg_file, 'file')
+                fid = fopen(arg_file, 'r');
+                cleanup = onCleanup(@()fclose(fid));
+                old_args = fgetl(fid);                
+            else
+                old_args = '';
+            end
+            if ~strcmp(old_args, args)
+                force = true;
+            end
+            fid = fopen(arg_file, 'w');
+            cleanup = onCleanup(@()fclose(fid));
+            fprintf(fid, '%s\n', args);            
+            fid = -1; % This causes file to be closed immediately
+            
+            % Build list of files that need to be converted
+            convert = {};
+            pdf2jpg = @(x) strrep(x, '.pdf', '.jpg');            
+            for k = 1:length(pdfs)
+                pdf = pdfs(k).Name;
+                jpg = pdf2jpg(pdf);
+                if ~exist(jpg, 'file') || force
+                    convert{end+1} = pdf;
+                else
+                     jpgd = dir(jpg);
+                     pdfd = dir(pdf);
+                     if jpgd.datenum < pdfd.datenum
+                         convert{end + 1} = pdf;
+                     end
+                end
+            end
+            % Convert each file
+            % TODO: Parallelize
+            for k = 1:length(convert)
+                pdf = convert{k};
+                cmd = sprintf('convert -resize 512x512\\! %s %s %s', ...
+                    args, pdf, pdf2jpg(pdf));
+                obj.system(cmd);
+            end
+        end
+        
+        function [] = link(obj)
+            % Create symlinks to JPGs in folder called 'frames'
+            %
+            % You must run this before running ffmpeg()
+            [success, jpgs] = fileattrib([obj.path '/*.jpg']);
+            if ~success
+                warning('No JPGs found');
+                return;
+            end
+            
+            % Build frames directory, clearing content if necessary
+            framepath = [obj.path '/frames/'];
+            if exist(framepath, 'dir')
+                rmdir(framepath, 's')
+            end
+            [success, message] = mkdir(framepath);
+            if success ~= 1
+                error(message);
+            end
+            
+            obj.fmt = sprintf('%%0%dd.jpg', length(int2str(length(jpgs))));
+            ind = 0;
+            for k = 1:length(jpgs)
+                jpg = jpgs(k).Name;
+                [~, filename, ext] = fileparts(jpg);
+                
+                link = [framepath sprintf(obj.fmt, ind)];
+                cmd = sprintf('ln -sf ../%s %s', [filename ext], link);
+                obj.system(cmd);
+                ind = ind + 1;
+            end
+        end
+        
+        function [] = ffmpeg(obj, args)
+            % Create movie using JPGs located in frames/
+            %
+            % args: String that gets passed to ffmpeg
+            if nargin < 2
+                args = '';
+            end
+            fmt_str = sprintf('%s/frames/%s', obj.path, obj.fmt);
+            output = sprintf('%s/output.mp4', obj.path);
+            cmd = sprintf('ffmpeg -y %s -i %s %s', args, fmt_str, output);
+            
+            obj.system(cmd);
+            fprintf('Created %s\n', output);
+        end
+    end
+    
+    methods(Static)
+        function [result] = system(cmd)
+            [stat, result] = system(cmd);
+            if stat ~= 0
+                error('Error executing "%s"\n%s', cmd, result);
+            end
+        end
+    end
+end
+
