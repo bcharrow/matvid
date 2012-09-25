@@ -41,14 +41,20 @@ classdef FrameGrabber < handle
             obj.fh = fh;
             obj.path = attr.Name;
             obj.prefix = prefix;
-            % TODO: Check required commands like epstopdf exist?
         end              
         
-        function [] = set.transparency(obj, transparency)
-            if ~islogical(transparency)
-                error('transparency must be true or false');
+        function [] = set.transparency(obj, trans)
+            if ~islogical(trans) && trans ~= 1 && trans ~= 0
+                error('transparency must be true/false/0/1');
             end
-            obj.transparency = transparency;
+            obj.transparency = logical(trans);
+        end
+
+        function [] = set.overwrite(obj, ov)
+            if ~islogical(ov) && ov ~= 1 && ov ~= 0
+                error('overwrite must be true/false/0/1');
+            end
+            obj.overwrite = logical(ov);
         end
         
         function [] = set.fh(obj, fh)            
