@@ -66,9 +66,9 @@ classdef FrameGrabber < handle
         
         function [] = rm(obj)
             % Delete all files associated with path and prefix
-            delete(sprintf('%s/%s*.pdf', obj.path, obj.prefix));
-            delete(sprintf('%s/%s*.jpg', obj.path, obj.prefix));
-            delete(sprintf('%s/%s*.eps', obj.path, obj.prefix));
+            suffixes = {'.pdf', '.jpg', '.eps', '.svg'};
+            glob = sprintf('%s/%s*', obj.path, obj.prefix);
+            cellfun(@(suffix) delete([glob suffix]), suffixes);            
         end
         
         function [] = grab(obj)
