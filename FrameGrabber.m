@@ -99,7 +99,11 @@ classdef FrameGrabber < handle
                 delete(eps);
             else
                 svg = [fname '.svg'];
-                plot2svg(svg, obj.fh)
+                % Suppress annoying output from plot2svg
+                text_output = evalc('plot2svg(svg, obj.fh)');
+                if ~strcmp(text_output(4:41),'Matlab/Octave to SVG converter version')
+                    disp(text_output);
+                end
                 cmd = sprintf('rsvg-convert -f pdf -o %s %s', pdf, svg);
                 obj.system(cmd)
                 delete(svg);
