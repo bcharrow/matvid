@@ -2,8 +2,12 @@ classdef FrameConverter < handle
     %FRAMECONVERTER Make a movie from a folder of PDFs
     
     properties
-        path = '';
-        fmt = '%03d.jpg';
+        path = ''; % Path to directory containing PDFs
+        fmt = '%03d.jpg'; % Format string for symlinked JPGs made by link()
+        % max_jobs - Max number of jobs to run in parallel.
+        %
+        % Set to 0 to use all available cores.
+        max_jobs = 1;
     end
     
     methods
@@ -17,21 +21,20 @@ classdef FrameConverter < handle
             obj.path = data.Name;
         end
         
-        function [] = convert(obj, args, force)
-            % Convert all files in folder to JPG
-            %
-            % Default is to convert each PDF to 512x512 image.
-            %
-            % Caches results so that if a JPG has already been made for a
-            % PDF with the passed in arguments, no action is taken
-            %
-            % args: String that gets passed to convert
-            if nargin < 2
-                args = '';
+        function [] = set.max_jobs(obj, jobs)
+            if ~isnumeric(jobs) || jobs < 0 || int32(jobs) ~= jobs
+                error('max_jobs must be a non-negative integer')
             end
-            if nargin < 3
-                force = false;
-            end
+            obj.max_jobs = jobs;
+        end
+        
+        function [jpg] = jpg_name(~, pdf)
+            % Convert PDF source path to JPG destination path
+            jpg = strrep(pdf, '.pdf', '.jpg');
+        end
+        
+        function [convert] = need_convert(obj, args, force)
+            % Get cell array of paths to PDFs that need to be converted
             [success, pdfs] = fileattrib([obj.path '/*.pdf']);
             if ~success
                 warning('No pdfs found');
@@ -42,7 +45,7 @@ classdef FrameConverter < handle
             if exist(arg_file, 'file')
                 fid = fopen(arg_file, 'r');
                 cleanup = onCleanup(@()fclose(fid));
-                old_args = fgetl(fid);                
+                old_args = fgetl(fid);
             else
                 old_args = '';
             end
@@ -51,31 +54,62 @@ classdef FrameConverter < handle
             end
             fid = fopen(arg_file, 'w');
             cleanup = onCleanup(@()fclose(fid));
-            fprintf(fid, '%s\n', args);            
+            fprintf(fid, '%s\n', args);
             fid = -1; % This causes file to be closed immediately
             
             % Build list of files that need to be converted
             convert = {};
-            pdf2jpg = @(x) strrep(x, '.pdf', '.jpg');            
             for k = 1:length(pdfs)
                 pdf = pdfs(k).Name;
-                jpg = pdf2jpg(pdf);
+                jpg = obj.jpg_name(pdf);
                 if ~exist(jpg, 'file') || force
                     convert{end+1} = pdf;
                 else
-                     jpgd = dir(jpg);
-                     pdfd = dir(pdf);
-                     if jpgd.datenum < pdfd.datenum
-                         convert{end + 1} = pdf;
-                     end
+                    jpgd = dir(jpg);
+                    pdfd = dir(pdf);
+                    if jpgd.datenum < pdfd.datenum
+                        convert{end + 1} = pdf;
+                    end
                 end
             end
-            % Convert each file
-            % TODO: Parallelize
-            for k = 1:length(convert)
-                pdf = convert{k};
-                cmd = sprintf('convert -resize 512x512\\! %s %s %s', ...
-                    args, pdf, pdf2jpg(pdf));
+        end
+        
+        function [] = convert(obj, args, force)
+            % Convert all files in folder to JPG
+            %
+            % Default is to convert each PDF to 512x512 image.
+            %
+            % Caches results so that if a JPG has already been made for a
+            % PDF with the passed in arguments, no action is taken
+            %
+            % args: String that gets passed to convert
+            % force: If true, ignore cache and convert all PDFs to JPGs
+            if nargin < 2
+                args = '-resize 512x512\!';
+            end
+            if nargin < 3
+                force = false;
+            end
+            
+            convert = obj.need_convert(args, force);
+            if isempty(convert)
+                return
+            end
+            
+            convert_cmd = sprintf('convert %s', args);
+            if obj.max_jobs == 1
+                for k = 1:length(convert)
+                    pdf = convert{k};
+                    cmd = sprintf('%s %s %s', convert_cmd, pdf, obj.jpg_name(pdf));
+                    obj.system(cmd);
+                end
+            else
+                % Get space separate list of files
+                dest(1:length(convert)*2 - 1) = {' '};
+                dest(1:2:end) = convert;
+                files = [dest{:}];
+                cmd = sprintf('ls -1 %s | parallel -j %i -H 1 %s {} {.}.jpg', ...
+                    files, obj.max_jobs, convert_cmd);
                 obj.system(cmd);
             end
         end

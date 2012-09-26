@@ -21,10 +21,16 @@ Depending on your distro, the ffmpeg verison in the repos may be out of date. Ne
 
 * [ffmpeg download site](http://ffmpeg.org/download.html)
 
+For converting images in parallel, you'll need a recent version of ```parallel``` (don't use the version in ```moreutils```). On 11.10 and earlier this means:
+
+    add-apt-repository ppa:ieltonf
+    apt-get update
+    apt-get install parallel
+
 
 ## OS X (Homebrew)
 
-    brew install ffmpeg librsvg imagemagick
+    brew install ffmpeg librsvg imagemagick parallel
 
 On 10.6 we've had issues with librsvg and libpng versions.  Installing the latest version of [xquartz](http://xquartz.macosforge.org) fixes them.
 
@@ -33,3 +39,5 @@ To ensure Matlab can find all of the needed system calls, make sure PATH is set 
     setenv PATH /usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/X11/bin:/usr/X11/bin
 
 After you edit the file, you'll need to reboot for changes to take effect.  Note that this will set your path for *all* applications.  
+
+Another option is to configure the [path variable inside Matlab](http://www.mathworks.com/help/matlab/matlab_env/creating-opening-changing-and-deleting-files-and-folders.html#f0-38522)

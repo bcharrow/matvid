@@ -39,6 +39,22 @@ for k = 1:length(xs)
 end
 %% Build movie
 fc = FrameConverter('MyParticleMovie');
-fc.convert('-resize 1024x1024\!'); % Default picture size is 512x512
+% FrameConvert.convert() is a thin wrapper around imagemagick's convert.
+% You can pass command line options to it directly.  This command creates a
+% JPGs with size 1024x1024 without regard to aspect ratio of PDF.
+fc.convert('-resize 1024x1024\!');
+% FrameConvert.link() This is needed after every call to convert()
 fc.link();
+% FrameConvert.ffmpeg() is a thin wrapper around ffmpeg and takes its
+% command line options.  This command creates a movie at 10FPS.
+fc.ffmpeg('-r 10');
+%% Build movie in parallel
+% By setting max_jobs to a number great than 1, you can convert PDFs in
+% parallel.  Setting it to 0 to uses all cores on your machine
+fc = FrameConverter('MyParticleMovie');
+fc.max_jobs = 0;
+tic
+fc.convert('-resize 1024x1024\!', true); % Passing true forces recreate
+toc;
+fc.link()
 fc.ffmpeg('-r 10');
