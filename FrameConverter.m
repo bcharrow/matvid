@@ -108,7 +108,7 @@ classdef FrameConverter < handle
                 dest(1:length(convert)*2 - 1) = {' '};
                 dest(1:2:end) = convert;
                 files = [dest{:}];
-                cmd = sprintf('ls -1 %s | parallel -j %i -H 1 %s {} {.}.jpg', ...
+                cmd = sprintf('ls -1 %s | parallel -j %i --halt 1 %s {} {.}.jpg', ...
                     files, obj.max_jobs, convert_cmd);
                 obj.system(cmd);
             end
